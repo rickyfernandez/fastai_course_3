@@ -1,4 +1,8 @@
-elsie_images
+elsie_images/
+models/
 mnsit_png
+human_numbers
+rossmann_submission.csv
 jupyter.sh
+data/
 __pycache__
