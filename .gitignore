@@ -6,3 +6,4 @@ rossmann_submission.csv
 jupyter.sh
 data/
 __pycache__
+.ipynb_checkpoints
