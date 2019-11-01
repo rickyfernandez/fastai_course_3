@@ -21,8 +21,12 @@ class Lambda(nn.Module):
 def flatten(x): return x.view(x.shape[0], -1)
 
 class CudaCallback(Callback):
-    def begin_fit(self): self.model.cuda()
-    def begin_batch(self): self.run.xb, self.run.yb = self.xb.cuda(),self.yb.cuda()
+    def begin_fit(self):
+        if torch.cuda.is_available():
+            self.model.cuda()
+    def begin_batch(self):
+        if torch.cuda.is_available():
+            self.run.xb, self.run.yb = self.xb.cuda(),self.yb.cuda()
 
 class BatchTransformXCallback(Callback):
     _order=2

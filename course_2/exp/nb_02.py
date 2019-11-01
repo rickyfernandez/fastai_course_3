@@ -9,7 +9,7 @@ from exp.nb_01 import *
 def get_data():
     path = datasets.download_data(
         MNIST_URL,
-        fname="/home/ricky/Desktop/repos/fastai_course/data/mnist/mnist.pkl.gz",
+        #fname="/home/ricky/Desktop/repos/fastai_course/data/mnist/mnist.pkl.gz",
         ext=".gz")
     with gzip.open(path,"rb") as f:
         ((x_train, y_train), (x_valid, y_valid), _) = pickle.load(f, encoding='latin-1')
