@@ -46,6 +46,7 @@ class CancelBatchException(Exception): pass
 
 class Runner:
     def __init__(self, cbs=None, cb_funcs=None):
+        self.in_train = False # put in notebook
         cbs = listify(cbs)
         for cbf in listify(cb_funcs):
             cb = cbf()
