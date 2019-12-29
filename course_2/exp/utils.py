@@ -1,4 +1,5 @@
 import math
+import torch
 import os, mimetypes, re
 from typing import Iterable
 
@@ -19,29 +20,29 @@ def listify(obj):
 def accuracy(out, yb):
     return (torch.argmax(out, dim=1)==yb).float().mean()
 
-def setify(o): return o if isinstance(o, set) else set(listify(o))
-
-def _get_files(p, fs, extensions=None):
-    p = Path(p)
-    res = [p/f for f in fs if not f.startswith('.')
-           and ((not extensions) or f'.{f.split(".")[-1].lower()}' in extensions)]
-    return res
-
-def get_files(path, extensions=None, recurse=False, include=None):
-    path = Path(path)
-    extensions = setify(extensions)
-    extensions = {e.lower() for e in extensions}
-    if recurse:
-        res = []
-        for i, (p, d, f) in enumerate(os.walk(path)): # returns (dirpath, dirnames, filenames)
-            if include is not None and i==0: d[:] = [o for o in d if o in include]
-            else:                            d[:] = [o for o in d if not o.startswith('.')]
-            res += _get_files(p, f, extensions)
-        return res
-    else:
-        f = [o.name for o in os.scandir(path) if o.is_file()]
-        return _get_files(path, f, extensions)
-
+#def setify(o): return o if isinstance(o, set) else set(listify(o))
+#
+#def _get_files(p, fs, extensions=None):
+#    p = Path(p)
+#    res = [p/f for f in fs if not f.startswith('.')
+#           and ((not extensions) or f'.{f.split(".")[-1].lower()}' in extensions)]
+#    return res
+#
+#def get_files(path, extensions=None, recurse=False, include=None):
+#    path = Path(path)
+#    extensions = setify(extensions)
+#    extensions = {e.lower() for e in extensions}
+#    if recurse:
+#        res = []
+#        for i, (p, d, f) in enumerate(os.walk(path)): # returns (dirpath, dirnames, filenames)
+#            if include is not None and i==0: d[:] = [o for o in d if o in include]
+#            else:                            d[:] = [o for o in d if not o.startswith('.')]
+#            res += _get_files(p, f, extensions)
+#        return res
+#    else:
+#        f = [o.name for o in os.scandir(path) if o.is_file()]
+#        return _get_files(path, f, extensions)
+#
 def compose(x, funcs, *args, order_key='_order', **kwargs):
     key = lambda o: getattr(o, order_key, 0)
     for f in sorted(listify(funcs), key=key): x = f(x, **kwargs)

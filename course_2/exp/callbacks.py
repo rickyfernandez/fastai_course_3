@@ -1,8 +1,10 @@
-import re
-from fastprogress import master_bar
+import re, time, torch
 from functools import partial
+import matplotlib.pyplot as plt
 
-from exp.utils import camel2snake
+from fastprogress import master_bar, progress_bar
+from fastprogress.fastprogress import format_time
+from exp.utils import camel2snake, listify
 
 class Callback:
     _order=0
@@ -124,11 +126,22 @@ class ProgressCallback(Callback):
     def begin_validate(self): self.set_pb()
 
     def set_pb(self):
-        self.pb = progress_bar(self.dl, parent=self.mbar, auto_update=False)
+        self.pb = progress_bar(self.data_loader, parent=self.mbar, auto_update=False)
         self.mbar.update(self.epoch)
 
+class CudaCallback(Callback):
+    def begin_fit(self):
+        """Place all model parameters to gpu."""
+        if torch.cuda.is_available():
+            self.model.cuda()
+
+    def begin_batch(self):
+        """Place all batch data to gpu."""
+        if torch.cuda.is_available():
+            self.run.xb, self.run.yb = self.xb.cuda(), self.yb.cuda()
+
 #class ParamScheduler(Callback):
-#    _order = 1
+#    _order = 1s
 #    def __init__(self, pname, sched_funcs):
 #        self.pname, self.sched_funcs, = pname, sched_funcs
 #
@@ -179,23 +192,23 @@ class ProgressCallback(Callback):
 #def cos_1cycle_anneal(start, high, end):
 #    return [sched_cos(start, high), sched_cos(high, end)]
 #
-#class Recorder(Callback):
-#    def begin_fit(self): self.lrs,self.losses = [],[]
-#
-#    def after_batch(self):
-#        if not self.in_train: return
-#        self.lrs.append(self.opt.hypers[-1]['lr'])
-#        self.losses.append(self.loss.detach().cpu())
-#
-#    def plot_lr  (self): plt.plot(self.lrs)
-#    def plot_loss(self): plt.plot(self.losses)
-#
-#    def plot(self, skip_last=0):
-#        losses = [o.item() for o in self.losses]
-#        n = len(losses)-skip_last
-#        plt.xscale('log')
-#        plt.plot(self.lrs[:n], losses[:n])
-#
+class Recorder(Callback):
+    def begin_fit(self): self.lrs, self.losses = [], []
+
+    def after_batch(self):
+        if not self.in_train: return
+        self.lrs.append(self.opt.hypers[-1]['lr'])
+        self.losses.append(self.loss.detach().cpu())
+
+    def plot_lr  (self): plt.plot(self.lrs)
+    def plot_loss(self): plt.plot(self.losses)
+
+    def plot(self, skip_last=0):
+        losses = [o.item() for o in self.losses]
+        n = len(losses)-skip_last
+        plt.xscale('log')
+        plt.plot(self.lrs[:n], losses[:n])
+
 #class ParamScheduler(Callback):
 #    _order=1
 #    def __init__(self, pname, sched_funcs):
