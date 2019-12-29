@@ -129,7 +129,7 @@ def momentum_step(p, lr, grad_avg, **kwargs):
 
 def lin_comb(v1, v2, beta): return beta*v1 + (1-beta)*v2
 
-class AverageSGrad(Stat):
+class AverageGrad(Stat):
     _defaults = dict(mom=0.9)
 
     def __init__(self, dampening:bool=False): self.dampening=dampening
