@@ -6,6 +6,7 @@ from fastprogress import master_bar, progress_bar
 from fastprogress.fastprogress import format_time
 from exp.utils import camel2snake, listify
 
+
 class Callback:
     _order=0
 
@@ -26,6 +27,7 @@ class Callback:
         f = getattr(self, cb_name, None)
         if f and f(): return True
         return False
+
 
 class TrainEvalCallback(Callback):
     """Required callback that handles epoch and iterations values."""
@@ -113,6 +115,7 @@ class AvgStatsCallback(Callback):
         stats += [format_time(time.time() - self.start_time)]
         self.logger(stats)
 
+
 class ProgressCallback(Callback):
     _order=-1
     def begin_fit(self):
@@ -129,6 +132,7 @@ class ProgressCallback(Callback):
         self.pb = progress_bar(self.data_loader, parent=self.mbar, auto_update=False)
         self.mbar.update(self.epoch)
 
+
 class CudaCallback(Callback):
     def begin_fit(self):
         """Place all model parameters to gpu."""
@@ -139,6 +143,48 @@ class CudaCallback(Callback):
         """Place all batch data to gpu."""
         if torch.cuda.is_available():
             self.run.xb, self.run.yb = self.xb.cuda(), self.yb.cuda()
+
+
+class BatchTransformCallBack(Callback):
+    """Callback to perform transformations on batch using a
+    transformation function."""
+    _order=2
+    def __init__(self, trans_func):
+        self.trans_func = trans_func
+
+    def begin_batch(self): self.run.xb = self.trans_func(self.xb)
+
+
+def view_trans(*size):
+    """Reshape batch to shape size."""
+    def _inner(x): return x.view(((-1,) + size))
+    return _inner
+
+
+class HookCallBack(Callback):
+    _order = 1
+    def __init__(self, hook_func):
+        self.hook_func = hook_func
+
+    def begin_fit(self):
+        self.hooks = [Hook(param, self.hook_func) for param in self.model]
+
+    def after_fit(self):
+        for hook in self.hooks:
+            hook.remove()
+
+class Hook:
+    def __init__(self, m, f): self.hook = m.register_forward_hook(partial(f, self))
+    def remove(self): self.hook.remove()
+    def __del__(self): self.remove()
+
+
+def append_stats(hook, mod, inp, outp):
+    if not hasattr(hook, "stats"): hook.stats = ([], [])
+    means, stds = hook.stats
+    means.append(outp.data.mean().cpu())
+    stds.append(outp.data.std().cpu())
+
 
 #class ParamScheduler(Callback):
 #    _order = 1s
