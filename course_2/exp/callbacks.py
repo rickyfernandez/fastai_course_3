@@ -1,3 +1,4 @@
+from torch import nn
 import re, time, torch
 from functools import partial
 import matplotlib.pyplot as plt
@@ -167,7 +168,20 @@ class HookCallBack(Callback):
         self.hook_func = hook_func
 
     def begin_fit(self):
-        self.hooks = [Hook(param, self.hook_func) for param in self.model]
+        self.hooks = []
+        self.hook_names = []
+
+        for layer, param in enumerate(self.model):
+
+            if isinstance(param, nn.Sequential):
+                if isinstance(param[0], nn.Conv2d):
+                    self.hook_names.append("Conv2d_" + str(layer))
+                    self.hooks.append(Hook(param, self.hook_func))
+
+            elif isinstance(param, nn.Linear):
+                self.hook_names.append("Linear_" + str(layer))
+                self.hooks.append(Hook(param, self.hook_func))
+
 
     def after_fit(self):
         for hook in self.hooks:
