@@ -25,6 +25,9 @@ def read_file(fn):
     with open(fn, 'r', encoding='utf8') as f: return f.read()
 
 class TextList(ItemList):
+    """
+    List that holds file names for each text samlple.
+    """
     @classmethod
     def from_files(cls, path, extensions='.txt', recurse=True, include=None, **kwargs):
         return cls(get_files(path, extensions, recurse=recurse, include=include), path, **kwargs)
@@ -111,6 +114,8 @@ default_post_rules = [deal_caps, replace_all_caps, add_eos_bos]
 
 
 def parallel(func, arr, max_workers=4):
+    """Wrapper that applies the function func to items in list in parallel.
+    Values in list are enumerated."""
     if max_workers<2: results = list(progress_bar(map(func, enumerate(arr)), total=len(arr)))
     else:
         with ProcessPoolExecutor(max_workers=max_workers) as ex:
@@ -119,49 +124,73 @@ def parallel(func, arr, max_workers=4):
 
 
 class TokenizeProcessor(Processor):
+    """Replaces words in a corpus by speical tokens and takes care of
+    special language rules (i.e. don't). Can be run in parallel."""
     def __init__(self, lang="en", chunksize=2000, pre_rules=None, post_rules=None, max_workers=4): 
-        self.chunksize,self.max_workers = chunksize,max_workers
+        self.chunksize = chunksize
+        self.max_workers = max_workers
         self.tokenizer = spacy.blank(lang).tokenizer
+
+        # add our special words into list of tokens
         for w in default_spec_tok:
             self.tokenizer.add_special_case(w, [{ORTH: w}])
+
         self.pre_rules  = default_pre_rules  if pre_rules  is None else pre_rules
         self.post_rules = default_post_rules if post_rules is None else post_rules
 
     def proc_chunk(self, args):
-        i,chunk = args
+        """Process text first by pre_rules then by spacy and lastly post_rules.
+        """
+        i, chunk = args
         chunk = [compose(t, self.pre_rules) for t in chunk]
-        docs = [[d.text for d in doc] for doc in self.tokenizer.pipe(chunk)]
-        docs = [compose(t, self.post_rules) for t in docs]
+        docs  = [[d.text for d in doc] for doc in self.tokenizer.pipe(chunk)]
+        docs  = [compose(t, self.post_rules) for t in docs]
         return docs
 
     def __call__(self, items):
-        toks = []
+        """Transform all values in data list into numerical values. Runs in
+        parallel by batching items.
+        """
+        tokens = []
         if isinstance(items[0], Path): items = [read_file(i) for i in items]
-        chunks = [items[i: i+self.chunksize] for i in (range(0, len(items), self.chunksize))]
-        toks = parallel(self.proc_chunk, chunks, max_workers=self.max_workers)
-        return sum(toks, [])
 
-    def proc1(self, item): return self.proc_chunk([item])[0]
+        chunks = [items[i: i+self.chunksize] for i in range(0, len(items), self.chunksize)]
+        tokens = parallel(self.proc_chunk, chunks, max_workers=self.max_workers)
 
-    def deprocess(self, toks): return [self.deproc1(tok) for tok in toks]
-    def deproc1(self, tok):    return " ".join(tok)
+        # concatentate all results from parallel workers
+        return sum(tokens, [])
+
+    def proc1(self, item): return self.proc_chunk((1,[item]))[0]
+
+    def deprocess(self, tokens): return [self.deproc1(tok) for tok in tokens]
+    def deproc1(self, tokens): return " ".join(tokens)
 
 
 class NumericalizeProcessor(Processor):
+    """Create vocabulary for text creating mapping between integers
+    and words."""
     def __init__(self, vocab=None, max_vocab=60000, min_freq=2):
-        self.vocab,self.max_vocab,self.min_freq = vocab,max_vocab,min_freq
+        self.vocab = vocab
+        self.max_vocab = max_vocab
+        self.min_freq = min_freq
 
     def __call__(self, items):
-        #The vocab is defined on the first use.
+        """Map words to integers, if vocab mapping does not exist then
+        create it."""
         if self.vocab is None:
-            freq = Counter(p for o in items for p in o)
-            self.vocab = [o for o,c in freq.most_common(self.max_vocab) if c >= self.min_freq]
-            for o in reversed(default_spec_tok):
-                if o in self.vocab: self.vocab.remove(o)
-                self.vocab.insert(0, o)
+            freq = Counter(word for sentance in items for word in sentance)
+            self.vocab = [word for word,count in freq.most_common(self.max_vocab)
+                    if count >= self.min_freq]
+
+            # place our special tokens in front
+            for word in reversed(default_spec_tok):
+                if word in self.vocab: self.vocab.remove(word)
+                self.vocab.insert(0, word)
+
         if getattr(self, 'otoi', None) is None:
             self.otoi = collections.defaultdict(int,{v:k for k,v in enumerate(self.vocab)})
         return [self.proc1(o) for o in items]
+
     def proc1(self, item):  return [self.otoi[o] for o in item]
 
     def deprocess(self, idxs):
@@ -171,6 +200,13 @@ class NumericalizeProcessor(Processor):
 
 
 class LM_PreLoader():
+    """Disregards the target and creates a new target from input shifted
+    by unit. This is to only be used in language models predicting the
+    next word. All items are concatenated to create a corpus then batched.
+    The first line in the batch continues with the second first line in
+    the second batch thus the hidden state can be carried over in rnn
+    models.
+    """
     def __init__(self, data, bs=64, bptt=70, shuffle=False):
         self.data,self.bs,self.bptt,self.shuffle = data,bs,bptt,shuffle
         total_len = sum([len(t) for t in data.x])

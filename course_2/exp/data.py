@@ -85,6 +85,9 @@ def split_by_func(itemlist, func):
 
 
 class SplitData:
+    """Class that holds train and valid. It also performs spitting if
+    a validation set does not exist by using split_by_func.
+    """
     def __init__(self, train, valid):
         self.train, self.valid = train, valid
     def __getattr__(self, k): return getattr(self.train, k)
@@ -92,10 +95,13 @@ class SplitData:
 
     @classmethod
     def split_by_func(cls, itemlist, func):
+        """Split list of data into a training and validation data set by
+        using func."""
         lists = map(itemlist.new, split_by_func(itemlist.items, func))
         return cls(*lists)
 
-    def __repr__(self): return f'{self.__class__.__name__}\nTrain: {self.train}\n\nValid: {self.valid}\n'
+    def __repr__(self):
+        return f'{self.__class__.__name__}\nTrain: {self.train}\n\nValid: {self.valid}\n'
 
 
 class ListContainer:
@@ -156,8 +162,6 @@ def label_by_func(sd, f, proc_x=None, proc_y=None):
 
 
 class LabeledData:
-    def process(self, il, proc): return il.new(compose(il.items, proc))
-
     def __init__(self, x, y, proc_x=None, proc_y=None):
         self.x, self.y = self.process(x, proc_x), self.process(y, proc_y)
         self.proc_x, self.proc_y = proc_x, proc_y
@@ -166,6 +170,7 @@ class LabeledData:
     def __getitem__(self, idx): return self.x[idx], self.y[idx]
     def __len__(self): return len(self.x)
 
+    def process(self, il, proc): return il.new(compose(il.items, proc))
     def x_obj(self, idx): return self.obj(self.x, idx, self.proc_x)
     def y_obj(self, idx): return self.obj(self.y, idx, self.proc_y)
 
